@@ -57,7 +57,6 @@ def show_ingame_menu(screen):
                 if quit_btn.is_clicked(event):
                     return False
 
-        # --- DRAW BUTTONS ---
         quit_btn.draw(screen)
 
         pygame.display.flip()

@@ -86,6 +86,7 @@ class Ball:
         direction = 1 if self.y_vel >= 0 else -1
         self.x = self.original_x
         self.y = self.original_y
+        # Drop speed to default
         self.y_vel = self.MAX_VEL * direction
         self.y_vel *= -1
         self.x_vel = 0
@@ -135,8 +136,9 @@ def handle_collision(ball, left_paddle, right_paddle):
         if ball.x >= mirror_x and ball.x <= mirror_x + right_paddle.width:  # Ball in coredor against paddle
             if ball.y - ball.radius <= mirror_y:  # Collision
                 ball.y_vel *= -1  # Revers(bounce)
-                ball.y_vel *= 1.05
+                ball.y_vel *= 1.05  # Axelerator
 
+                # Reflection angle
                 middle_x = mirror_x + right_paddle.width / 2
                 difference_in_x = middle_x - ball.x
                 reduction_factor = (right_paddle.width / 2) / ball.MAX_VEL
@@ -147,8 +149,9 @@ def handle_collision(ball, left_paddle, right_paddle):
         if ball.x >= left_paddle.x and ball.x <= left_paddle.x + left_paddle.width:  # Ball in coredor against paddle
             if ball.y + ball.radius >= left_paddle.y:  # Collision
                 ball.y_vel *= -1  # Revers(bounce)
-                ball.y_vel *= 1.05
+                ball.y_vel *= 1.05  # Axelerator
 
+                # Reflection angle
                 middle_x = left_paddle.x + left_paddle.width / 2
                 difference_in_x = middle_x - ball.x
                 reduction_factor = (left_paddle.width / 2) / ball.MAX_VEL
