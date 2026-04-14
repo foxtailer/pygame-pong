@@ -1,4 +1,5 @@
 import json
+import time
 import socket
 from threading import Thread
 
@@ -11,7 +12,7 @@ def connect_to_server():
     while True:
         try:
             client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            client.connect(('localhost', 8080)) # ---- Підключення до сервера
+            client.connect(('localhost', 8080))
             buffer = ""
             game_state = {}
             my_id = int(client.recv(24).decode())
@@ -31,7 +32,7 @@ def receive():
                 if packet.strip():
                     game_state = json.loads(packet)
         except:
-            game_state["winner"] = -1
+            game_state["winner"] = -1 
             break
 
 
@@ -54,41 +55,49 @@ while run:
     for event in pygame.event.get():
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
+                        client.send(b"PAUSE")
                         run = show_ingame_menu(screen)
-
+                        if run:
+                            client.send(b"PAUSE")
     
     if "countdown" in game_state and game_state["countdown"] > 0:
         screen.fill((0, 0, 0))
         countdown_text = pygame.font.Font(None, 72).render(str(game_state["countdown"]), True, (255, 255, 255))
         screen.blit(countdown_text, (750 // 2 - 20, 800 // 2 - 30))
         pygame.display.update()
-        continue  # Не малюємо гру до завершення відліку
-
+        continue
+    
+    # Someone win
     if "winner" in game_state and game_state["winner"] is not None:
         screen.fill((20, 20, 20))
 
-        if you_winner is None:  # Встановлюємо тільки один раз
+        if you_winner is None:
             if game_state["winner"] == my_id:
                 you_winner = True
             else:
                 you_winner = False
 
         if you_winner:
-            text = "Ти переміг!"
+            text = "Win!"
         else:
-            text = "Пощастить наступним разом!"
+            text = "Try again!"
 
         win_text = font_win.render(text, True, (255, 215, 0))
         text_rect = win_text.get_rect(center=(750 // 2, 800 // 2))
         screen.blit(win_text, text_rect)
 
-        text = font_win.render('К - рестарт', True, (255, 215, 0))
-        text_rect = text.get_rect(center=(750 // 2, 800 // 2 + 120))
-        screen.blit(text, text_rect)
-
         pygame.display.update()
+        time.sleep(5)
+
+        # Probably this block should be in a function)
+        screen.fill((30, 30, 30))
+        game_over = False
+        winner = None
+        you_winner = None
+        my_id, game_state, buffer, client = connect_to_server()
+        Thread(target=receive, daemon=True).start()
+
         continue
-        # my_id, game_state, buffer, client = connect_to_server()
 
     if game_state:
         screen.fill((30, 30, 30))
@@ -111,14 +120,12 @@ while run:
 
         if game_state['sound_event']:
             if game_state['sound_event'] == 'wall_hit':
-                # звук відбиття м'ячика від стін
                 pass
             if game_state['sound_event'] == 'platform_hit':
-                # звук відбиття м'ячика від платформи
                 pass
 
     else:
-        wating_text = font_main.render(f"Очікування гравців...", True, (255, 255, 255))
+        wating_text = font_main.render(f"Wait for players...", True, (255, 255, 255))
         screen.blit(wating_text, (750 // 2 - 25, 20))
 
     pygame.display.update()

@@ -28,29 +28,33 @@ class GameServer:
         self.ball = {
             "x": WIDTH // 2,
             "y": HEIGHT // 2,
-            "vx": 0,  # BALL_SPEED * random.choice([-1, 1]),
+            "vx": 0,
             "vy": BALL_SPEED * random.choice([-1, 1])
         }
         self.countdown = COUNTDOWN_START
         self.game_over = False
         self.winner = None
+        self.pause = False
 
-    def handle_client(self, pid):  # pid 1|0 player_id
-        conn = self.clients[pid]
+    def handle_client(self, player_id):
+        conn = self.clients[player_id]
         try:
             while True:
                 data = conn.recv(64).decode()
+
                 with self.lock:
                     if data == "LEFT":
-                        self.paddles[pid] = max(0, self.paddles[pid] - PADDLE_SPEED)
+                        self.paddles[player_id] = max(0, self.paddles[player_id] - PADDLE_SPEED)
                     elif data == "RIGHT":
-                        self.paddles[pid] = min(WIDTH - 100, self.paddles[pid] + PADDLE_SPEED)
+                        self.paddles[player_id] = min(WIDTH - 100, self.paddles[player_id] + PADDLE_SPEED)
+                    elif data == "PAUSE":
+                        self.pause = not self.pause
         except:
             with self.lock:
-                self.connected[pid] = False
+                self.connected[player_id] = False
                 self.game_over = True
-                self.winner = 1 - pid  # інший гравець автоматично виграє
-                print(f"Гравець {pid} відключився. Переміг гравець {1 - pid}.")
+                self.winner = 1 - player_id  # Oposite player wins
+                print(f"Player {player_id} left the game. Player {1 - player_id} wins.")
 
     def broadcast_state(self):
         state = json.dumps({
@@ -60,13 +64,15 @@ class GameServer:
             "countdown": max(self.countdown, 0),
             "winner": self.winner if self.game_over else None,
             "sound_event": self.sound_event,
+            "pause": self.pause
         }) + "\n"
-        for pid, conn in self.clients.items():
+
+        for player_id, conn in self.clients.items():
             if conn:
                 try:
                     conn.sendall(state.encode())
                 except:
-                    self.connected[pid] = False
+                    self.connected[player_id] = False
 
     def ball_logic(self):
         while self.countdown > 0:
@@ -76,6 +82,10 @@ class GameServer:
                 self.broadcast_state()
 
         while not self.game_over:
+            if self.pause:
+                    time.sleep(0.1)
+                    continue
+            
             with self.lock:
                 # Ball fly
                 self.ball['x'] += self.ball['vx']
@@ -137,19 +147,19 @@ class GameServer:
         self.ball = {
             "x": WIDTH // 2,
             "y": HEIGHT // 2,
-            "vx": 0, # BALL_SPEED * random.choice([-1, 1]),
-            "vy": self.ball["vy"] * -1  # BALL_SPEED * random.choice([-1, 1])
+            "vx": 0,
+            "vy": self.ball["vy"] * -1  # Oposite direction after goal
         }
 
     def accept_players(self):
-        for pid in [0, 1]:
-            print(f"Очікуємо гравця {pid}...")
-            conn, _ = self.server.accept()
-            self.clients[pid] = conn
-            conn.sendall((str(pid) + "\n").encode())
-            self.connected[pid] = True
-            print(f"Гравець {pid} приєднався")
-            threading.Thread(target=self.handle_client, args=(pid,), daemon=True).start()
+        for player_id in [0, 1]:
+            print(f"Wait for player {player_id}...")
+            conn, _ = self.server.accept() # Wait for player to connect
+            self.clients[player_id] = conn
+            self.connected[player_id] = True
+            conn.sendall((str(player_id) + "\n").encode())
+            print(f"Player {player_id} joined the game.")
+            threading.Thread(target=self.handle_client, args=(player_id,), daemon=True).start()
 
     def run(self):
         while True:
@@ -160,16 +170,16 @@ class GameServer:
             while not self.game_over and all(self.connected.values()):
                 time.sleep(0.1)
 
-            print(f"Гравець {self.winner} переміг!")
-            time.sleep(5)
+            print(f"Player {self.winner} won!")
+            time.sleep(1)
 
-            # Закриваємо старі з'єднання
-            for pid in [0, 1]:
+            # Closing old connections
+            for player_id in [0, 1]:
                 try:
-                    self.clients[pid].close()
+                    self.clients[player_id].close()
                 except:
                     pass
-                self.clients[pid] = None
-                self.connected[pid] = False
+                self.clients[player_id] = None
+                self.connected[player_id] = False
 
 GameServer().run()
